@@ -89,102 +89,26 @@ function! LatexBox_Latexmk(force)
 
 	let basename = LatexBox_GetTexBasename(1)
 
-	if has_key(s:latexmk_running_pids, basename)
-		echomsg "latexmk is already running for `" . fnamemodify(basename, ':t') . "'"
-		return
-	endif
-
 	let callsetpid = s:SIDWrap('LatexmkSetPID')
 	let callback = s:SIDWrap('LatexmkCallback')
 
-	let l:options = '-' . g:LatexBox_output_type . ' -quiet ' . g:LatexBox_latexmk_options
-	if a:force
-		let l:options .= ' -g'
-	endif
-	let l:options .= " -e '$pdflatex =~ s/ / -file-line-error /'"
-	let l:options .= " -e '$latex =~ s/ / -file-line-error /'"
-
-	" callback to set the pid
-	let vimsetpid = g:vim_program . ' --servername ' . v:servername . ' --remote-expr ' .
-				\ shellescape(callsetpid) . '\(\"' . fnameescape(basename) . '\",$$\)'
-
-	" wrap width in log file
-	let max_print_line = 2000
-
-	" set environment
-	if match(&shell, '/tcsh$') >= 0
-		let l:env = 'setenv max_print_line ' . max_print_line . '; '
-	else
-		let l:env = 'max_print_line=' . max_print_line
+	if !filereadable(LatexBox_GetTexRoot() . '/latexmk')
+		let l:options = '-' . g:LatexBox_output_type . g:LatexBox_latexmk_options
+		if a:force
+			let l:options .= ' -g'
+		endif
+			let l:options .= " -e '$pdflatex =~ s/ / -file-line-error /'"
+			let l:options .= " -e '$latex =~ s/ / -file-line-error /'"
 	endif
 
 	" latexmk command
-	let cmd = 'cd ' . shellescape(LatexBox_GetTexRoot()) . ' ; ' . l:env .
-				\ ' latexmk ' . l:options	. ' ' . shellescape(LatexBox_GetMainTexFile())
+	let cmd = 'cd ' . shellescape(LatexBox_GetTexRoot()) . ' ; ' .
+		' latexmk ' . l:options	. ' ' . shellescape(LatexBox_GetMainTexFile())
 
-	" callback after latexmk is finished
-	let vimcmd = g:vim_program . ' --servername ' . v:servername . ' --remote-expr ' .
-				\ shellescape(callback) . '\(\"' . fnameescape(basename) . '\",$?\)'
-
-	silent execute '! ( ' . vimsetpid . ' ; ( ' . cmd . ' ) ; ' . vimcmd . ' ) >&/dev/null &'
+	silent execute '!' . cmd
 	if !has("gui_running")
 		redraw!
 	endif
-endfunction
-" }}}
-
-" LatexmkStop {{{
-function! LatexBox_LatexmkStop()
-
-	let basename = LatexBox_GetTexBasename(1)
-
-	if !has_key(s:latexmk_running_pids, basename)
-		echomsg "latexmk is not running for `" . fnamemodify(basename, ':t') . "'"
-		return
-	endif
-
-	call s:kill_latexmk(s:latexmk_running_pids[basename])
-
-	call remove(s:latexmk_running_pids, basename)
-	echomsg "latexmk stopped for `" . fnamemodify(basename, ':t') . "'"
-endfunction
-" }}}
-
-" kill_latexmk {{{
-function! s:kill_latexmk(gpid)
-
-	" This version doesn't work on systems on which pkill is not installed:
-	"!silent execute '! pkill -g ' . pid
-
-	" This version is more portable, but still doesn't work on Mac OS X:
-	"!silent execute '! kill `ps -o pid= -g ' . pid . '`'
-
-	" Since 'ps' behaves differently on different platforms, we must use brute force:
-	" - list all processes in a temporary file
-	" - match by process group ID
-	" - kill matches
-	let pids = []
-	let tmpfile = tempname()
-	silent execute '!ps x -o pgid,pid > ' . tmpfile
-	for line in readfile(tmpfile)
-		let pid = matchstr(line, '^\s*' . a:gpid . '\s\+\zs\d\+\ze')
-		if !empty(pid)
-			call add(pids, pid)
-		endif
-	endfor
-	call delete(tmpfile)
-	if !empty(pids)
-		silent execute '! kill ' . join(pids)
-	endif
-endfunction
-" }}}
-
-" kill_all_latexmk {{{
-function! s:kill_all_latexmk()
-	for gpid in values(s:latexmk_running_pids)
-		call s:kill_latexmk(gpid)
-	endfor
-	let s:latexmk_running_pids = {}
 endfunction
 " }}}
 
@@ -204,34 +128,6 @@ function! LatexBox_LatexmkClean(cleanall)
 	endif
 
 	echomsg "latexmk clean finished"
-
-endfunction
-" }}}
-
-" LatexmkStatus {{{
-function! LatexBox_LatexmkStatus(detailed)
-
-	if a:detailed
-		if empty(s:latexmk_running_pids)
-			echo "latexmk is not running"
-		else
-			let plist = ""
-			for [basename, pid] in items(s:latexmk_running_pids)
-				if !empty(plist)
-					let plist .= '; '
-				endif
-				let plist .= fnamemodify(basename, ':t') . ':' . pid
-			endfor
-			echo "latexmk is running (" . plist . ")"
-		endif
-	else
-		let basename = LatexBox_GetTexBasename(1)
-		if has_key(s:latexmk_running_pids, basename)
-			echo "latexmk is running"
-		else
-			echo "latexmk is not running"
-		endif
-	endif
 
 endfunction
 " }}}
@@ -277,8 +173,6 @@ endfunction
 " Commands {{{
 command! -bang	Latexmk				call LatexBox_Latexmk(<q-bang> == "!")
 command! -bang	LatexmkClean		call LatexBox_LatexmkClean(<q-bang> == "!")
-command! -bang	LatexmkStatus		call LatexBox_LatexmkStatus(<q-bang> == "!")
-command! LatexmkStop			call LatexBox_LatexmkStop()
 command! LatexErrors			call LatexBox_LatexErrors(1)
 " }}}
 
