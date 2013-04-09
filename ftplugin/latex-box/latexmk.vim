@@ -83,8 +83,10 @@ endfunction
 function! LatexBox_Latexmk(force)
 
 	let basename = LatexBox_GetTexBasename(1)
+	let texroot = LatexBox_GetTexRoot()
+	let mainfile = LatexBox_GetMainTexFile()
 
-	if !filereadable(LatexBox_GetTexRoot() . '/latexmk')
+	if !filereadable(texroot . '/latexmk')
 		let l:options = '-' . g:LatexBox_output_type . g:LatexBox_latexmk_options
 		if a:force
 			let l:options .= ' -g'
@@ -94,8 +96,8 @@ function! LatexBox_Latexmk(force)
 	endif
 
 	" latexmk command
-	let cmd = 'cd ' . shellescape(LatexBox_GetTexRoot()) . ' ; ' .
-		' latexmk ' . l:options	. ' ' . shellescape(LatexBox_GetMainTexFile())
+	let cmd = 'cd ' . shellescape(texroot) . ' ; ' .  ' latexmk ' . l:options
+	. ' ' . shellescape(mainfile)
 
 	silent execute '!' . cmd
 	if !has("gui_running")
