@@ -65,7 +65,7 @@ function! LatexBox_Latexmk(force)
 	let texroot = LatexBox_GetTexRoot()
 	let mainfile = LatexBox_GetMainTexFile()
 
-	if !filereadable(texroot . '/latexmk')
+	if !filereadable(texroot . '/latexmkrc')
 		let l:options = '-' . g:LatexBox_output_type . g:LatexBox_latexmk_options
 		if a:force
 			let l:options .= ' -g'
