@@ -82,15 +82,7 @@ endfunction
 " Latexmk {{{
 function! LatexBox_Latexmk(force)
 
-	if empty(v:servername)
-		echoerr "cannot run latexmk in background without a VIM server"
-		return
-	endif
-
 	let basename = LatexBox_GetTexBasename(1)
-
-	let callsetpid = s:SIDWrap('LatexmkSetPID')
-	let callback = s:SIDWrap('LatexmkCallback')
 
 	if !filereadable(LatexBox_GetTexRoot() . '/latexmk')
 		let l:options = '-' . g:LatexBox_output_type . g:LatexBox_latexmk_options
