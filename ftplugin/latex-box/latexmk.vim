@@ -91,13 +91,13 @@ function! LatexBox_Latexmk(force)
 		if a:force
 			let l:options .= ' -g'
 		endif
-			let l:options .= " -e '$pdflatex =~ s/ / -file-line-error /'"
-			let l:options .= " -e '$latex =~ s/ / -file-line-error /'"
 	endif
 
+	let l:options .= " -e '$pdflatex =~ s/ / -interaction=nonstopmode -file-line-error /'"
+	let l:options .= " -e '$latex =~ s/ / -interaction=nonstopmode -file-line-error /'"
+
 	" latexmk command
-	let cmd = 'cd ' . shellescape(texroot) . ' ; ' .  ' latexmk ' . l:options
-	. ' ' . shellescape(mainfile)
+	let cmd = 'cd ' . shellescape(texroot) . ' ; ' .  ' latexmk ' . l:options . ' ' . shellescape(mainfile) . ' > ' . shellescape(texroot) . '/latexmk_error.log'
 
 	silent execute '!' . cmd
 	if !has("gui_running")
