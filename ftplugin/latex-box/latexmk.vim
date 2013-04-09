@@ -170,6 +170,4 @@ command! -bang	LatexmkClean		call LatexBox_LatexmkClean(<q-bang> == "!")
 command! LatexErrors			call LatexBox_LatexErrors(1)
 " }}}
 
-autocmd VimLeavePre * call <SID>kill_all_latexmk()
-
 " vim:fdm=marker:ff=unix:noet:ts=4:sw=4
