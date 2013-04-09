@@ -9,9 +9,6 @@ map <buffer> <LocalLeader>ll :Latexmk<CR>
 map <buffer> <LocalLeader>lL :Latexmk!<CR>
 map <buffer> <LocalLeader>lc :LatexmkClean<CR>
 map <buffer> <LocalLeader>lC :LatexmkClean!<CR>
-map <buffer> <LocalLeader>lg :LatexmkStatus<CR>
-map <buffer> <LocalLeader>lG :LatexmkStatus!<CR>
-map <buffer> <LocalLeader>lk :LatexmkStop<CR>
 map <buffer> <LocalLeader>le :LatexErrors<CR>
 " }}}
 
