@@ -1,16 +1,4 @@
 " LaTeX Box latexmk functions
-
-
-" <SID> Wrap {{{
-function! s:GetSID()
-	return matchstr(expand('<sfile>'), '\zs<SNR>\d\+_\ze.*$')
-endfunction
-let s:SID = s:GetSID()
-function! s:SIDWrap(func)
-	return s:SID . a:func
-endfunction
-" }}}
-
 " Compilation {{{
 
 " g:vim_program {{{
@@ -62,15 +50,6 @@ if ! exists("g:LatexBox_quickfix")
 endif
 " }}}
 
-
-" dictionary of latexmk PID's (basename: pid)
-let s:latexmk_running_pids = {}
-
-" Set PID {{{
-function! s:LatexmkSetPID(basename, pid)
-	let s:latexmk_running_pids[a:basename] = a:pid
-endfunction
-" }}}
 
 " Callback {{{
 function! s:LatexmkCallback(basename, status)
