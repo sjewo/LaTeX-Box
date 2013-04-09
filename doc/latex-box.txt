@@ -239,21 +239,14 @@ COMMANDS					*latex-box-commands*
 Compilation ~
 
 *:Latexmk*
-	Compile with latexmk in background.
+	Compile with latexmk.
 	See |g:LatexBox_latexmk_options|.
 *:LatexmkForce*
-	Force compilation with latexmk in background.
+	Force compilation with latexmk.
 *:LatexmkClean*
 	Clean temporary output from LaTeX.
 *:LatexmkCleanAll*
 	Clean all output from LaTeX.
-*:LatexmkStop*
-	Stop latexmk if it is running.
-*:LatexmkStatus*
-	Show the running status of latexmk for the current buffer.
-*:LatexmkStatusDetailed*
-	Show the running status of latexmk for all buffers with process group
-	ID's.
 *:LatexErrors*
 	Load the log file for the current document and jump to the first error.
 
@@ -311,13 +304,6 @@ Compilation ~
 	Clean temporary output from LaTeX.
 <LocalLeader>lC		|:LatexmkCleanAll|
 	Clean all output from LaTeX.
-<LocalLeader>lk		|:LatexmkStop|
-	Stop latexmk if it is running.
-<LocalLeader>lg		|:LatexmkStatus|
-	Show the running status of latexmk for the current buffer.
-<LocalLeader>lG		|:LatexmkStatusDetailed|
-	Show the running status of latexmk for all buffers with process group
-	ID's.
 <LocalLeader>le		|:LatexErrors|
 	Load the log file for the current document and jump to the first error.
 
