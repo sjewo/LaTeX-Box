@@ -38,32 +38,29 @@ if !exists('g:LatexBox_fold_sections')
                 \ ]
 endif
 
-"
 " The foldexpr function returns "=" for most lines, which means it can become
 " slow for large files.  The following is a hack that is based on this reply to
 " a discussion on the Vim Developer list:
 " http://permalink.gmane.org/gmane.editors.vim.devel/14100
-"
 augroup FastFold
     autocmd!
     autocmd InsertEnter *.tex setlocal foldmethod=manual
     autocmd InsertLeave *.tex setlocal foldmethod=expr
+"   autocmd InsertLeave *.tex augroup FoldMeth
+"               \ | autocmd  FoldMeth CursorHold * setlocal foldmethod=expr
+"               \ | autocmd! FoldMeth CursorHold
 augroup end
 
-" {{{1 LatexBox_FoldLevel
+" {{{1 LatexBox_FoldLevel help functions
 
-" FoldLevelStart returns an integer that is used to dynamically set the correct
-" fold level for sections and parts.  This way we don't need to set
-" g:LatexBox_fold_sections differently for different kinds of documents.  E.g.
-" in an article we typically just use section, subsection, etc, so \section
-" should be foldlevel 1, whereas in a book \chapter could be foldlevel 1.
-function! s:FoldLevelStart()
-    "
-    " Search through the document and dynamically define the initial section
-    " level.  If we use more than one of the *matter commands, than we need one
-    " more foldlevel.
-    "
+" The function parses the tex file to find the sections that are to be folded
+" and their levels.
+function! s:FoldSectionLevels()
+    " Initialize
     let level = 1
+    let foldsections = []
+
+    " If we use two or more of the *matter commands, we need one more foldlevel
     let nparts = 0
     for part in g:LatexBox_fold_parts
         let i = 1
@@ -79,58 +76,90 @@ function! s:FoldLevelStart()
             break
         endif
     endfor
-    "
-    " Set the level according to the highest level of sectioning
-    "
+
+    " Combine sections and levels, but ignore unused section commands:  If we
+    " don't use the part command, then chapter should have the highest
+    " level.  If we don't use the chapter command, then section should be the
+    " highest level.  And so on.
+    let ignore = 1
     for part in g:LatexBox_fold_sections
-        let i = 1
-        while i < line("$")
-            if getline(i) =~ '^\s*\\' . part . '\>'
-                return level
-            endif
-            let i += 1
-        endwhile
-        let level -= 1
+        " For each part, check if it is used in the file.  We start adding the
+        " parts to the fold sections array whenever we find one.
+        if ignore
+            let i = 1
+            while i < line("$")
+                if getline(i) =~ '^\s*\\' . part . '\>'
+                    call insert(foldsections, [part, level])
+                    let level += 1
+                    let ignore = 0
+                    break
+                endif
+                let i += 1
+            endwhile
+        else
+            call insert(foldsections, [part, level])
+            let level += 1
+        endif
     endfor
-    return level
+
+    return foldsections
 endfunction
-let b:LatexBox_CurrentFoldLevelStart = s:FoldLevelStart()
+
+function! s:GetFoldLevel(lnum)
+    if b:LatexBox_FoldCache[a:lnum][0] == ">"
+        return b:LatexBox_FoldCache[a:lnum][1]
+    elseif b:LatexBox_FoldCache[a:lnum][0] == "<"
+        return b:LatexBox_FoldCache[a:lnum][1] - 1
+    else
+        return b:LatexBox_FoldCache[a:lnum][0]
+    endif
+endfunction
+
+" {{{1 LatexBox_FoldLevel
+
+" Parse file to dynamically set the sectioning fold levels
+let b:LatexBox_FoldSections = s:FoldSectionLevels()
+
+" Create fold cache
+let b:LatexBox_FoldCache = {}
 
 function! LatexBox_FoldLevel(lnum)
     let line  = getline(a:lnum)
     let nline = getline(a:lnum + 1)
+    let b:LatexBox_FoldCache[a:lnum] = -1
 
     " Fold preamble
     if g:LatexBox_fold_preamble==1
         if line =~# '\s*\\documentclass'
-            return ">1"
+            let b:LatexBox_FoldCache[a:lnum] = ">1"
+            return b:LatexBox_FoldCache[a:lnum]
         elseif nline =~# '^\s*\\begin\s*{\s*document\s*}'
-            return "<1"
+            let b:LatexBox_FoldCache[a:lnum] = "<1"
+            return b:LatexBox_FoldCache[a:lnum]
         elseif line =~# '^\s*\\begin\s*{\s*document\s*}'
-            return "0"
+            let b:LatexBox_FoldCache[a:lnum] = 0
+            return b:LatexBox_FoldCache[a:lnum]
         endif
     endif
 
     " Never fold \end{document}
-    if nline =~ '\s*\\end{document}'
-        return "<1"
+    if line =~# '\s*\\end{document}'
+        let b:LatexBox_FoldCache[a:lnum] = 0
+        return b:LatexBox_FoldCache[a:lnum]
     endif
 
     " Fold parts (\frontmatter, \mainmatter, \backmatter, and \appendix)
     if line =~# '^\s*\\\%('.join(g:LatexBox_fold_parts, '\|') . '\)'
-        return ">1"
+        let b:LatexBox_FoldCache[a:lnum] = ">1"
+        return b:LatexBox_FoldCache[a:lnum]
     endif
 
     " Fold chapters and sections
-    let level = b:LatexBox_CurrentFoldLevelStart
-    for part in g:LatexBox_fold_sections
-        if line  =~ '^\s*\\' . part . '\*\?\s*\({\|\[\)'
-            return ">" . level
+    for [part, level] in b:LatexBox_FoldSections
+        if line =~# '^\s*\(\\\|% Fake\)' . part . '\>'
+            let b:LatexBox_FoldCache[a:lnum] = ">" . level
+            return b:LatexBox_FoldCache[a:lnum]
         endif
-        if line  =~ '^\s*% Fake' . part
-            return ">" . level
-        endif
-        let level += 1
     endfor
 
     " Fold environments
@@ -138,14 +167,21 @@ function! LatexBox_FoldLevel(lnum)
     let notcomment = '\%(\%(\\\@<!\%(\\\\\)*\)\@<=%.*\)\@<!'
     if g:LatexBox_fold_envs==1
         if line =~# notcomment . notbslash . '\\begin\s*{.\{-}}'
-            return "a1"
+            let b:LatexBox_FoldCache[a:lnum]
+                        \ = ">" . string(1 + s:GetFoldLevel(a:lnum-1))
+            return b:LatexBox_FoldCache[a:lnum]
         elseif line =~# notcomment . notbslash . '\\end\s*{.\{-}}'
-            return "s1"
+            let b:LatexBox_FoldCache[a:lnum]
+                        \ = "<" . s:GetFoldLevel(a:lnum-1)
+            return b:LatexBox_FoldCache[a:lnum]
         endif
     endif
 
     " Return foldlevel of previous line
-    return "="
+    if b:LatexBox_FoldCache[a:lnum] == -1
+        let b:LatexBox_FoldCache[a:lnum] = s:GetFoldLevel(a:lnum-1)
+        return b:LatexBox_FoldCache[a:lnum]
+    endif
 endfunction
 
 " {{{1 LatexBox_FoldText help functions
