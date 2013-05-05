@@ -42,14 +42,14 @@ endif
 " slow for large files.  The following is a hack that is based on this reply to
 " a discussion on the Vim Developer list:
 " http://permalink.gmane.org/gmane.editors.vim.devel/14100
-augroup FastFold
-    autocmd!
-    autocmd InsertEnter *.tex setlocal foldmethod=manual
-    autocmd InsertLeave *.tex setlocal foldmethod=expr
-"   autocmd InsertLeave *.tex augroup FoldMeth
-"               \ | autocmd  FoldMeth CursorHold * setlocal foldmethod=expr
-"               \ | autocmd! FoldMeth CursorHold
-augroup end
+"augroup FastFold
+"    autocmd!
+"    autocmd InsertEnter *.tex setlocal foldmethod=manual
+"    autocmd InsertLeave *.tex setlocal foldmethod=expr
+""   autocmd InsertLeave *.tex augroup FoldMeth
+""               \ | autocmd  FoldMeth CursorHold * setlocal foldmethod=expr
+""               \ | autocmd! FoldMeth CursorHold
+"augroup end
 
 " {{{1 LatexBox_FoldLevel help functions
 
@@ -106,12 +106,12 @@ function! s:FoldSectionLevels()
 endfunction
 
 function! s:GetFoldLevel(lnum)
-    if b:LatexBox_FoldCache[a:lnum][0] == ">"
-        return b:LatexBox_FoldCache[a:lnum][1]
-    elseif b:LatexBox_FoldCache[a:lnum][0] == "<"
-        return b:LatexBox_FoldCache[a:lnum][1] - 1
+    if b:LatexBox_FoldCache[a:lnum].level[0] == ">"
+        return b:LatexBox_FoldCache[a:lnum].level[1]
+    elseif b:LatexBox_FoldCache[a:lnum].level[0] == "<"
+        return b:LatexBox_FoldCache[a:lnum].level[1] - 1
     else
-        return b:LatexBox_FoldCache[a:lnum][0]
+        return b:LatexBox_FoldCache[a:lnum].level[0]
     endif
 endfunction
 
@@ -121,67 +121,96 @@ endfunction
 let b:LatexBox_FoldSections = s:FoldSectionLevels()
 
 " Create fold cache
-let b:LatexBox_FoldCache = {}
+let b:LatexBox_FoldCache = {0: 0, 'unchanged': 0}
 
+let s:notbslash = '\%(\\\@<!\%(\\\\\)*\)\@<='
+let s:notcomment = '\%(\%(\\\@<!\%(\\\\\)*\)\@<=%.*\)\@<!'
 function! LatexBox_FoldLevel(lnum)
-    let line  = getline(a:lnum)
-    let nline = getline(a:lnum + 1)
-    let b:LatexBox_FoldCache[a:lnum] = -1
+    " Folding starts with line 1, in which case we reset the unchanged flag
+    if a:lnum == 1
+        let b:LatexBox_FoldCache.force = 0
+    endif
+
+    " Check cache
+    let line = getline(a:lnum)
+    if has_key(b:LatexBox_FoldCache, a:lnum)
+        if b:LatexBox_FoldCache[a:lnum].line != line
+           let b:LatexBox_FoldCache[a:lnum].line = line
+           let b:LatexBox_FoldCache[a:lnum].level = -1
+        endif
+    else
+        let b:LatexBox_FoldCache[a:lnum] = {
+                    \ 'line': line,
+                    \ 'level': -1,
+                    \ }
+    endif
+
+    " Check if we need to do more work
+    if b:LatexBox_FoldCache[a:lnum].level == -1 || b:LatexBox_FoldCache.force
+        let b:LatexBox_FoldCache[a:lnum].level
+                    \ = s:GetFoldLevel(a:lnum - 1)
+    else
+        return b:LatexBox_FoldCache[a:lnum].level
+    endif
 
     " Fold preamble
-    if g:LatexBox_fold_preamble==1
-        if line =~# '\s*\\documentclass'
-            let b:LatexBox_FoldCache[a:lnum] = ">1"
-            return b:LatexBox_FoldCache[a:lnum]
+    let nline = getline(a:lnum + 1)
+    if g:LatexBox_fold_preamble == 1
+        if line =~# '^\s*\\documentclass'
+            let b:LatexBox_FoldCache[a:lnum].level = ">1"
+            let b:LatexBox_FoldCache.force = 1
+            return b:LatexBox_FoldCache[a:lnum].level
         elseif nline =~# '^\s*\\begin\s*{\s*document\s*}'
-            let b:LatexBox_FoldCache[a:lnum] = "<1"
-            return b:LatexBox_FoldCache[a:lnum]
+            let b:LatexBox_FoldCache[a:lnum].level = "<1"
+            let b:LatexBox_FoldCache.force = 1
+            return b:LatexBox_FoldCache[a:lnum].level
         elseif line =~# '^\s*\\begin\s*{\s*document\s*}'
-            let b:LatexBox_FoldCache[a:lnum] = 0
-            return b:LatexBox_FoldCache[a:lnum]
+            let b:LatexBox_FoldCache[a:lnum].level = 0
+            let b:LatexBox_FoldCache.force = 1
+            return b:LatexBox_FoldCache[a:lnum].level
         endif
     endif
 
-    " Never fold \end{document}
+    " Don't fold \end{document}
     if line =~# '\s*\\end{document}'
-        let b:LatexBox_FoldCache[a:lnum] = 0
-        return b:LatexBox_FoldCache[a:lnum]
+        let b:LatexBox_FoldCache[a:lnum].level = 0
+        let b:LatexBox_FoldCache.force = 1
+        return b:LatexBox_FoldCache[a:lnum].level
     endif
 
     " Fold parts (\frontmatter, \mainmatter, \backmatter, and \appendix)
-    if line =~# '^\s*\\\%('.join(g:LatexBox_fold_parts, '\|') . '\)'
-        let b:LatexBox_FoldCache[a:lnum] = ">1"
-        return b:LatexBox_FoldCache[a:lnum]
+    if line =~# '^\s*\\\%(' . join(g:LatexBox_fold_parts, '\|') . '\)'
+        let b:LatexBox_FoldCache[a:lnum].level = ">1"
+        let b:LatexBox_FoldCache.force = 1
+        return b:LatexBox_FoldCache[a:lnum].level
     endif
 
     " Fold chapters and sections
     for [part, level] in b:LatexBox_FoldSections
         if line =~# '^\s*\(\\\|% Fake\)' . part . '\>'
-            let b:LatexBox_FoldCache[a:lnum] = ">" . level
-            return b:LatexBox_FoldCache[a:lnum]
+            let b:LatexBox_FoldCache[a:lnum].level = ">" . level
+            let b:LatexBox_FoldCache.force = 1
+            return b:LatexBox_FoldCache[a:lnum].level
         endif
     endfor
 
     " Fold environments
-    let notbslash = '\%(\\\@<!\%(\\\\\)*\)\@<='
-    let notcomment = '\%(\%(\\\@<!\%(\\\\\)*\)\@<=%.*\)\@<!'
-    if g:LatexBox_fold_envs==1
-        if line =~# notcomment . notbslash . '\\begin\s*{.\{-}}'
-            let b:LatexBox_FoldCache[a:lnum]
-                        \ = ">" . string(1 + s:GetFoldLevel(a:lnum-1))
-            return b:LatexBox_FoldCache[a:lnum]
-        elseif line =~# notcomment . notbslash . '\\end\s*{.\{-}}'
-            let b:LatexBox_FoldCache[a:lnum]
-                        \ = "<" . s:GetFoldLevel(a:lnum-1)
-            return b:LatexBox_FoldCache[a:lnum]
+    if g:LatexBox_fold_envs == 1
+        if line =~# s:notcomment . s:notbslash . '\\begin\s*{.\{-}}'
+            let b:LatexBox_FoldCache[a:lnum].level
+                        \ = ">" . string(1 + b:LatexBox_FoldCache[a:lnum].level)
+            let b:LatexBox_FoldCache.force = 1
+            return b:LatexBox_FoldCache[a:lnum].level
+        elseif line =~# s:notcomment . s:notbslash . '\\end\s*{.\{-}}'
+            let b:LatexBox_FoldCache[a:lnum].level
+                        \ = "<" . b:LatexBox_FoldCache[a:lnum].level
+            let b:LatexBox_FoldCache.force = 1
+            return b:LatexBox_FoldCache[a:lnum].level
         endif
     endif
 
     " Return foldlevel of previous line
-    if b:LatexBox_FoldCache[a:lnum] == -1
-        let b:LatexBox_FoldCache[a:lnum] = s:GetFoldLevel(a:lnum-1)
-        return b:LatexBox_FoldCache[a:lnum]
-    endif
+    return b:LatexBox_FoldCache[a:lnum].level
 endfunction
 
 " {{{1 LatexBox_FoldText help functions
